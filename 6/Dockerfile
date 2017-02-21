@@ -1,4 +1,6 @@
-FROM buildpack-deps:jessie
+# centos 5 EOL: Mar 31, 2017
+# centos 6 EOL: Nov 30, 2020
+FROM centos:6
 
 # https://gcc.gnu.org/mirrors.html
 ENV GPG_KEYS \
@@ -19,10 +21,9 @@ ENV GCC_VERSION 6.3.0
 
 # "download_prerequisites" pulls down a bunch of tarballs and extracts them,
 # but then leaves the tarballs themselves lying around
-RUN buildDeps='flex' \
+RUN buildDeps='flex bzip2 wget gcc-c++' \
 	&& set -x \
-	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends \
-	&& rm -r /var/lib/apt/lists/* \
+	&& yum install -y $buildDeps \
 	&& curl -fSL "http://ftpmirror.gnu.org/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.bz2" -o gcc.tar.bz2 \
 	&& curl -fSL "http://ftpmirror.gnu.org/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.bz2.sig" -o gcc.tar.bz2.sig \
 	&& gpg --batch --verify gcc.tar.bz2.sig gcc.tar.bz2 \
@@ -41,15 +42,10 @@ RUN buildDeps='flex' \
 	&& make install-strip \
 	&& cd .. \
 	&& rm -rf "$dir" \
-	&& apt-get purge -y --auto-remove $buildDeps
+	&& yum remove -y $buildDeps
 
 # gcc installs .so files in /usr/local/lib64...
 RUN echo '/usr/local/lib64' > /etc/ld.so.conf.d/local-lib64.conf \
 	&& ldconfig -v
 
-# ensure that alternatives are pointing to the new compiler and that old one is no longer used
-RUN set -x \
-	&& dpkg-divert --divert /usr/bin/gcc.orig --rename /usr/bin/gcc \
-	&& dpkg-divert --divert /usr/bin/g++.orig --rename /usr/bin/g++ \
-	&& dpkg-divert --divert /usr/bin/gfortran.orig --rename /usr/bin/gfortran \
-	&& update-alternatives --install /usr/bin/cc cc /usr/local/bin/gcc 999
+RUN update-alternatives --install /usr/bin/cc cc /usr/local/bin/gcc 999
